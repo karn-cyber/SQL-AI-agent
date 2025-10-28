@@ -1,8 +1,8 @@
 langchain==0.1.16
 langchain-openai==0.1.6
 langchain-community==0.0.32
-sqlalchemy==2.0.29
-psycopg2-binary==2.9.9
+sqlalchemy>=2.0.44
+psycopg2-binary>=2.9.11
 python-dotenv==1.0.1
 pandas==2.2.2
 streamlit==1.33.0

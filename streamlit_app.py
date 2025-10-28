@@ -180,6 +180,20 @@ def execute_query(agent, question):
         # Display agent response
         st.success("✅ Query executed successfully!")
         
+        # Display data summary if available
+        if result.get('data') is not None:
+            row_count = result.get('row_count', 0)
+            col_count = result.get('column_count', 0)
+            
+            # Show summary metrics
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("📊 Rows", row_count)
+            with col2:
+                st.metric("📋 Columns", col_count)
+            with col3:
+                st.metric("✅ Status", "Success")
+        
         # Response
         with st.expander("🤖 AI Agent Response", expanded=True):
             st.write(result['agent_response'])
@@ -189,24 +203,53 @@ def execute_query(agent, question):
             with st.expander("🔍 Generated SQL Query"):
                 st.code(result['sql_query'], language='sql')
         
-        # Raw result data if available
-        try:
-            if result.get('sql_query'):
+        # Data Results - prioritize the data from the result
+        if result.get('data') is not None:
+            data_df = result['data']
+            if not data_df.empty:
+                with st.expander("📊 Query Results", expanded=True):
+                    st.dataframe(data_df, use_container_width=True)
+                    
+                    # Download button
+                    csv = data_df.to_csv(index=False)
+                    st.download_button(
+                        label="📥 Download Full Results as CSV",
+                        data=csv,
+                        file_name=f"query_results_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                        mime="text/csv"
+                    )
+                    
+                    # Data info
+                    st.info(f"📈 Showing {len(data_df)} rows × {len(data_df.columns)} columns")
+            else:
+                st.info("📋 Query executed successfully but returned no data.")
+        
+        # Fallback: try to execute SQL if data wasn't included in result
+        elif result.get('sql_query'):
+            try:
                 raw_data = agent.execute_raw_sql(result['sql_query'])
                 if not raw_data.empty:
-                    with st.expander("📊 Raw Query Results"):
+                    with st.expander("📊 Query Results", expanded=True):
                         st.dataframe(raw_data, use_container_width=True)
                         
                         # Download button
                         csv = raw_data.to_csv(index=False)
                         st.download_button(
-                            label="📥 Download as CSV",
+                            label="📥 Download Results as CSV",
                             data=csv,
                             file_name=f"query_results_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.csv",
                             mime="text/csv"
                         )
-        except Exception as e:
-            st.warning(f"Could not execute raw SQL for data display: {e}")
+                        
+                        st.info(f"📈 Showing {len(raw_data)} rows × {len(raw_data.columns)} columns")
+                else:
+                    st.info("📋 Query executed successfully but returned no data.")
+            except Exception as e:
+                st.warning(f"Could not execute SQL for data display: {e}")
+        
+        # Show any data execution errors
+        if result.get('data_execution_error'):
+            st.warning(f"⚠️ Note: Could not execute SQL for data preview: {result['data_execution_error']}")
     
     else:
         st.error("❌ Query failed!")

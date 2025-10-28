@@ -6,6 +6,8 @@ Run this script to interact with the SQL AI Agent via command line
 
 import sys
 import os
+import pandas as pd
+from datetime import datetime
 from sql_ai_agent import SQLAIAgent
 
 def main():
@@ -69,10 +71,39 @@ def main():
                     if result.get('sql_query'):
                         print(f"\n🔍 Generated SQL:")
                         print(result['sql_query'])
+                    
+                    # Display data results if available
+                    if result.get('data') is not None:
+                        data_df = result['data']
+                        row_count = result.get('row_count', 0)
+                        col_count = result.get('column_count', 0)
                         
-                        # Ask if user wants to see raw data
+                        print(f"\n📊 Query Results Summary:")
+                        print(f"   Rows: {row_count}")
+                        print(f"   Columns: {col_count}")
+                        
+                        if not data_df.empty:
+                            print(f"\n📋 Data Results:")
+                            print(data_df.to_string(max_rows=20, max_cols=10))
+                            if len(data_df) > 20:
+                                print(f"... and {len(data_df) - 20} more rows")
+                                
+                            # Offer to save to CSV
+                            try:
+                                save_csv = input("\n💾 Save results to CSV file? (y/n): ").strip().lower()
+                                if save_csv in ['y', 'yes']:
+                                    filename = f"query_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+                                    data_df.to_csv(filename, index=False)
+                                    print(f"✅ Results saved to: {filename}")
+                            except:
+                                pass
+                        else:
+                            print("📋 Query executed successfully but returned no data.")
+                    
+                    elif result.get('sql_query'):
+                        # Fallback: try to execute SQL if data wasn't included
                         try:
-                            show_data = input("\n📊 Show raw query results? (y/n): ").strip().lower()
+                            show_data = input("\n📊 Execute query to show results? (y/n): ").strip().lower()
                             if show_data in ['y', 'yes']:
                                 raw_data = agent.execute_raw_sql(result['sql_query'])
                                 if not raw_data.empty:
@@ -84,6 +115,11 @@ def main():
                                     print("No data returned from query.")
                         except Exception as e:
                             print(f"⚠️ Could not display raw data: {e}")
+                    
+                    # Show data execution error if any
+                    if result.get('data_execution_error'):
+                        print(f"\n⚠️ Note: Could not execute SQL for data preview: {result['data_execution_error']}")
+                        
                 else:
                     print("❌ FAILED!")
                     print(f"Error: {result.get('error', 'Unknown error')}")

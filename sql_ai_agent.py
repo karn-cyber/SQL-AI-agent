@@ -122,7 +122,7 @@ class SQLAIAgent:
             user_question (str): Natural language question about the database
             
         Returns:
-            Dict containing the response, SQL query (if extracted), and results
+            Dict containing the response, SQL query (if extracted), results data, and metadata
         """
         try:
             logger.info(f"Processing user question: {user_question}")
@@ -170,14 +170,43 @@ class SQLAIAgent:
             
             # Extract the output
             agent_output = response.get('output', '')
+            sql_query = self._extract_sql_from_response(agent_output)
             
+            # Initialize result structure
             result = {
                 'success': True,
                 'user_question': user_question,
                 'agent_response': agent_output,
-                'sql_query': self._extract_sql_from_response(agent_output),
+                'sql_query': sql_query,
+                'data': None,
+                'data_preview': None,
+                'row_count': 0,
+                'column_count': 0,
                 'timestamp': pd.Timestamp.now().isoformat()
             }
+            
+            # If we extracted a SQL query, execute it and get the actual data
+            if sql_query:
+                try:
+                    logger.info(f"Executing extracted SQL query: {sql_query}")
+                    data_df = self.execute_raw_sql(sql_query)
+                    
+                    # Add data information to result
+                    result['data'] = data_df
+                    result['row_count'] = len(data_df)
+                    result['column_count'] = len(data_df.columns) if not data_df.empty else 0
+                    
+                    # Create a preview (first 10 rows) for display
+                    if not data_df.empty:
+                        result['data_preview'] = data_df.head(10)
+                        logger.info(f"Query returned {len(data_df)} rows and {len(data_df.columns)} columns")
+                    else:
+                        result['data_preview'] = pd.DataFrame()
+                        logger.info("Query returned no data")
+                    
+                except Exception as e:
+                    logger.warning(f"Could not execute extracted SQL query: {e}")
+                    result['data_execution_error'] = str(e)
             
             logger.info("Query processed successfully")
             return result
